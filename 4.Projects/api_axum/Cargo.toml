@@ -1,0 +1,9 @@
+[package]
+name = "api_axum"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.213", features = ["derive"] }
+axum = "0.7.7"
+tokio = { version = "1.41.0", features = ["full"] }
