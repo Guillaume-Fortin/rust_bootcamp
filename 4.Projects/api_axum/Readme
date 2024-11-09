@@ -1,5 +1,17 @@
+#watch
 
+cargo watch -q -c -w src/ -x run
 
 # start postgresql in docker
 
 docker run --name stack-overflow-db -e POSTGRES_PASSWORD={{POSTGRES_PASSWORD}} -p 55008:5432 -d postgres
+
+
+# execute sql migrations
+
+sqlx migrate run
+
+# revert sql migrations
+
+sqlx migrate revert
+
