@@ -112,110 +112,13 @@ pub async fn delete_answer(
 
 #[cfg(test)]
 mod tests {
+    use std::future;
+
+    use mockall::predicate;
+
+    use crate::persistance::{answers_dao::MockAnswersDao, questions_dao::MockQuestionsDao};
+
     use super::*;
-
-    use async_trait::async_trait;
-    use tokio::sync::Mutex;
-
-    struct QuestionsDaoMock {
-        create_question_response: Mutex<Option<Result<QuestionDetail, DBError>>>,
-        delete_question_response: Mutex<Option<Result<(), DBError>>>,
-        get_questions_response: Mutex<Option<Result<Vec<QuestionDetail>, DBError>>>,
-    }
-
-    impl QuestionsDaoMock {
-        pub fn new() -> Self {
-            QuestionsDaoMock {
-                create_question_response: Mutex::new(None),
-                delete_question_response: Mutex::new(None),
-                get_questions_response: Mutex::new(None),
-            }
-        }
-        pub fn mock_create_question(&mut self, response: Result<QuestionDetail, DBError>) {
-            self.create_question_response = Mutex::new(Some(response));
-        }
-        pub fn mock_delete_question(&mut self, response: Result<(), DBError>) {
-            self.delete_question_response = Mutex::new(Some(response));
-        }
-        pub fn mock_get_questions(&mut self, response: Result<Vec<QuestionDetail>, DBError>) {
-            self.get_questions_response = Mutex::new(Some(response));
-        }
-    }
-
-    #[async_trait]
-    impl QuestionsDao for QuestionsDaoMock {
-        async fn create_question(&self, _: Question) -> Result<QuestionDetail, DBError> {
-            self.create_question_response
-                .lock()
-                .await
-                .take()
-                .expect("create_question_response should not be None.")
-        }
-        async fn delete_question(&self, _: String) -> Result<(), DBError> {
-            self.delete_question_response
-                .lock()
-                .await
-                .take()
-                .expect("delete_question_response should not be None.")
-        }
-        async fn get_questions(&self) -> Result<Vec<QuestionDetail>, DBError> {
-            self.get_questions_response
-                .lock()
-                .await
-                .take()
-                .expect("get_questions_response should not be None.")
-        }
-    }
-
-    struct AnswersDaoMock {
-        create_answer_response: Mutex<Option<Result<AnswerDetail, DBError>>>,
-        delete_answer_response: Mutex<Option<Result<(), DBError>>>,
-        get_answers_response: Mutex<Option<Result<Vec<AnswerDetail>, DBError>>>,
-    }
-
-    impl AnswersDaoMock {
-        pub fn new() -> Self {
-            AnswersDaoMock {
-                create_answer_response: Mutex::new(None),
-                delete_answer_response: Mutex::new(None),
-                get_answers_response: Mutex::new(None),
-            }
-        }
-        pub fn mock_create_answer(&mut self, response: Result<AnswerDetail, DBError>) {
-            self.create_answer_response = Mutex::new(Some(response));
-        }
-        pub fn mock_delete_answer(&mut self, response: Result<(), DBError>) {
-            self.delete_answer_response = Mutex::new(Some(response));
-        }
-        pub fn mock_get_answers(&mut self, response: Result<Vec<AnswerDetail>, DBError>) {
-            self.get_answers_response = Mutex::new(Some(response));
-        }
-    }
-
-    #[async_trait]
-    impl AnswersDao for AnswersDaoMock {
-        async fn create_answer(&self, _: Answer) -> Result<AnswerDetail, DBError> {
-            self.create_answer_response
-                .lock()
-                .await
-                .take()
-                .expect("create_answer_response should not be None.")
-        }
-        async fn delete_answer(&self, _: String) -> Result<(), DBError> {
-            self.delete_answer_response
-                .lock()
-                .await
-                .take()
-                .expect("delete_answer_response should not be None.")
-        }
-        async fn get_answers(&self, _: String) -> Result<Vec<AnswerDetail>, DBError> {
-            self.get_answers_response
-                .lock()
-                .await
-                .take()
-                .expect("get_answers_response should not be None.")
-        }
-    }
 
     #[tokio::test]
     async fn create_question_should_return_question() {
@@ -231,11 +134,19 @@ mod tests {
             created_at: "now".to_owned(),
         };
 
-        let mut questions_dao = QuestionsDaoMock::new();
+        let question_detail_clone = question_detail.clone();
+        let mut mock_questions_dao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_create_question()
+            .with(predicate::eq(question.clone()))
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Ok::<QuestionDetail, DBError>(
+                    question_detail_clone.clone(),
+                )))
+            });
 
-        questions_dao.mock_create_question(Ok(question_detail.clone()));
-
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = create_question(question, questions_dao.as_ref()).await;
 
@@ -250,11 +161,16 @@ mod tests {
             description: "test description".to_owned(),
         };
 
-        let mut questions_dao = QuestionsDaoMock::new();
+        let mut mock_questions_dao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_create_question()
+            .with(predicate::eq(question.clone()))
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned()))))
+            });
 
-        questions_dao.mock_create_question(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = create_question(question, questions_dao.as_ref()).await;
 
@@ -274,11 +190,19 @@ mod tests {
             created_at: "now".to_owned(),
         };
 
-        let mut questions_dao = QuestionsDaoMock::new();
+        let question_detail_clone = question_detail.clone();
 
-        questions_dao.mock_get_questions(Ok(vec![question_detail.clone()]));
+        let mut mock_questions_dao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_get_questions()
+            .times(1)
+            .returning(move || {
+                Box::pin(future::ready(Ok::<Vec<QuestionDetail>, DBError>(vec![
+                    question_detail_clone.clone(),
+                ])))
+            });
 
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = get_questions(questions_dao.as_ref()).await;
 
@@ -288,11 +212,15 @@ mod tests {
 
     #[tokio::test]
     async fn read_questions_should_return_error() {
-        let mut questions_dao = QuestionsDaoMock::new();
+        let mut mock_questions_dao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_get_questions()
+            .times(1)
+            .returning(move || {
+                Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned()))))
+            });
 
-        questions_dao.mock_get_questions(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = get_questions(questions_dao.as_ref()).await;
 
@@ -309,11 +237,13 @@ mod tests {
             question_uuid: "123".to_owned(),
         };
 
-        let mut questions_dao = QuestionsDaoMock::new();
+        let mut mock_questions_dao: MockQuestionsDao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_delete_question()
+            .times(1)
+            .returning(|_| Box::pin(future::ready(Ok::<(), DBError>(()))));
 
-        questions_dao.mock_delete_question(Ok(()));
-
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = delete_question(question_id, questions_dao.as_ref()).await;
 
@@ -327,11 +257,13 @@ mod tests {
             question_uuid: "123".to_owned(),
         };
 
-        let mut questions_dao = QuestionsDaoMock::new();
+        let mut mock_questions_dao: MockQuestionsDao = MockQuestionsDao::new();
+        mock_questions_dao
+            .expect_delete_question()
+            .times(1)
+            .returning(|_| Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned())))));
 
-        questions_dao.mock_delete_question(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(questions_dao);
+        let questions_dao: Box<dyn QuestionsDao + Send + Sync> = Box::new(mock_questions_dao);
 
         let result = delete_question(question_id, questions_dao.as_ref()).await;
 
@@ -356,11 +288,19 @@ mod tests {
             created_at: "now".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let answer_detail_clone = answer_detail.clone();
 
-        answers_dao.mock_create_answer(Ok(answer_detail.clone()));
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_create_answer()
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Ok::<AnswerDetail, DBError>(
+                    answer_detail_clone.clone(),
+                )))
+            });
 
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = create_answer(answer, answers_dao.as_ref()).await;
 
@@ -375,11 +315,13 @@ mod tests {
             content: "test content".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let mut mock_anwers_dao: MockAnswersDao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_create_answer()
+            .times(1)
+            .returning(|_| Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned())))));
 
-        answers_dao.mock_create_answer(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = create_answer(answer, answers_dao.as_ref()).await;
 
@@ -397,14 +339,17 @@ mod tests {
             content: "test content".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_create_answer()
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Err(DBError::Other(Box::new(
+                    std::io::Error::new(std::io::ErrorKind::Other, "oh no!"),
+                )))))
+            });
 
-        answers_dao.mock_create_answer(Err(DBError::Other(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "oh no!",
-        )))));
-
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = create_answer(answer, answers_dao.as_ref()).await;
 
@@ -428,11 +373,19 @@ mod tests {
             question_uuid: "123".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let answer_detail_clone = answer_detail.clone();
 
-        answers_dao.mock_get_answers(Ok(vec![answer_detail.clone()]));
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_get_answers()
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Ok::<Vec<AnswerDetail>, DBError>(vec![
+                    answer_detail_clone.clone(),
+                ])))
+            });
 
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = read_answers(question_id, answers_dao.as_ref()).await;
 
@@ -446,11 +399,15 @@ mod tests {
             question_uuid: "123".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_get_answers()
+            .times(1)
+            .returning(move |_| {
+                Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned()))))
+            });
 
-        answers_dao.mock_get_answers(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = read_answers(question_id, answers_dao.as_ref()).await;
 
@@ -467,11 +424,13 @@ mod tests {
             answer_uuid: "123".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_delete_answer()
+            .times(1)
+            .returning(|_| Box::pin(future::ready(Ok::<(), DBError>(()))));
 
-        answers_dao.mock_delete_answer(Ok(()));
-
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = delete_answer(answer_id, answers_dao.as_ref()).await;
 
@@ -485,11 +444,13 @@ mod tests {
             answer_uuid: "123".to_owned(),
         };
 
-        let mut answers_dao = AnswersDaoMock::new();
+        let mut mock_anwers_dao = MockAnswersDao::new();
+        mock_anwers_dao
+            .expect_delete_answer()
+            .times(1)
+            .returning(|_| Box::pin(future::ready(Err(DBError::InvalidUUID("test".to_owned())))));
 
-        answers_dao.mock_delete_answer(Err(DBError::InvalidUUID("test".to_owned())));
-
-        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(answers_dao);
+        let answers_dao: Box<dyn AnswersDao + Send + Sync> = Box::new(mock_anwers_dao);
 
         let result = delete_answer(answer_id, answers_dao.as_ref()).await;
 

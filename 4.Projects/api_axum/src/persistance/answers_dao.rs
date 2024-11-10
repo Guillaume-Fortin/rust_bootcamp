@@ -1,9 +1,11 @@
 use async_trait::async_trait;
+use mockall::automock;
 use sqlx::PgPool;
 
 use crate::models::{postgres_error_codes, Answer, AnswerDetail, DBError};
 
 #[async_trait]
+#[automock]
 pub trait AnswersDao {
     async fn create_answer(&self, answer: Answer) -> Result<AnswerDetail, DBError>;
     async fn delete_answer(&self, answer_uuid: String) -> Result<(), DBError>;
