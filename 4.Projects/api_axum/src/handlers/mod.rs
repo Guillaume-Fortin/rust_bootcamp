@@ -6,6 +6,34 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 
+use utoipa::OpenApi;
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        get_questions,
+        create_question,
+        delete_question,
+        get_answers,
+        create_answer,
+        delete_answer,
+    ),
+    components(
+        schemas(
+            Question,
+            QuestionDetail,
+            QuestionId,
+            Answer,
+            AnswerId,
+            AnswerDetail,
+        )
+    ),
+    tags(
+        (name = "Api Axum test", description = "Documentation for the API")
+    )
+)]
+pub struct ApiDoc;
+
 impl IntoResponse for handlers_inner::HandlerError {
     fn into_response(self) -> axum::response::Response {
         match self {
@@ -19,6 +47,15 @@ impl IntoResponse for handlers_inner::HandlerError {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/questions",
+    responses(
+        (status = 200, body= [Vec<QuestionDetail>]),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn get_questions(
     State(AppState { questions_dao, .. }): State<AppState>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
@@ -27,6 +64,15 @@ pub async fn get_questions(
         .map(Json)
 }
 
+#[utoipa::path(
+    post,
+    path = "/question",
+    responses(
+        (status = 200, body= [QuestionDetail]),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn create_question(
     State(AppState { questions_dao, .. }): State<AppState>,
     Json(question): Json<Question>,
@@ -36,6 +82,15 @@ pub async fn create_question(
         .map(Json)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/question",
+    responses(
+        (status = 200),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn delete_question(
     State(AppState { questions_dao, .. }): State<AppState>,
     Json(question_id): Json<QuestionId>,
@@ -43,6 +98,15 @@ pub async fn delete_question(
     handlers_inner::delete_question(question_id, questions_dao.as_ref()).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/answers",
+    responses(
+        (status = 200, body= [Vec<AnswerDetail>]),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn get_answers(
     State(AppState { answers_dao, .. }): State<AppState>,
     Json(answer_id): Json<QuestionId>,
@@ -52,6 +116,15 @@ pub async fn get_answers(
         .map(Json)
 }
 
+#[utoipa::path(
+    post,
+    path = "/answer",
+    responses(
+        (status = 200, body= [AnswerDetail]),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn create_answer(
     State(AppState { answers_dao, .. }): State<AppState>,
     Json(answer): Json<Answer>,
@@ -61,6 +134,15 @@ pub async fn create_answer(
         .map(Json)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/answer",
+    responses(
+        (status = 200),
+        (status = 400, body = String),
+        (status = 500, body = String)
+    )
+)]
 pub async fn delete_answer(
     State(AppState { answers_dao, .. }): State<AppState>,
     Json(answer_id): Json<AnswerId>,

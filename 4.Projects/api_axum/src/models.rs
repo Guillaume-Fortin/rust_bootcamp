@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, ToSchema)]
 pub struct Question {
     pub title: String,
     pub description: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, ToSchema)]
 pub struct QuestionDetail {
     pub question_uuid: String,
     pub title: String,
@@ -15,23 +16,23 @@ pub struct QuestionDetail {
     pub created_at: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct QuestionId {
     pub question_uuid: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Answer {
     pub question_uuid: String,
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct AnswerId {
     pub answer_uuid: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, ToSchema)]
 pub struct AnswerDetail {
     pub answer_uuid: String,
     pub question_uuid: String,

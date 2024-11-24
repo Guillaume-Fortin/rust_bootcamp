@@ -16,6 +16,8 @@ use persistance::{
     questions_dao::{QuestionsDao, QuestionsDaoImpl},
 };
 use sqlx::postgres::PgPoolOptions;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -60,6 +62,7 @@ async fn main() {
         .route("/answers", get(get_answers))
         .route("/answer", post(create_answer))
         .route("/answer", delete(delete_answer))
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .with_state(app_state);
 
     // run it with hyper on localhost:8000
